@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Subnet Calculator</title>
+    <style>
+        /* Resetting some default styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f8f9fa;
+            color: #333;
+            margin: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: auto;
+            background: #fff;
+            box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .header {
+            background: #007bff;
+            color: #fff;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 1.8rem;
+        }
+
+        .form-section {
+            padding: 20px;
+        }
+
+        .form-section label {
+            font-weight: bold;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .form-section input {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 1rem;
+        }
+
+        .form-section button {
+            background-color: #007bff;
+            color: #fff;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        .form-section button:hover {
+            background-color: #0056b3;
+        }
+
+        .results-section {
+            padding: 20px;
+            border-top: 1px solid #ddd;
+        }
+
+        .results-section h2 {
+            margin-bottom: 15px;
+            color: #007bff;
+        }
+
+        .results-section p {
+            margin-bottom: 8px;
+            font-size: 1rem;
+        }
+
+        .results-section textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 1rem;
+            height: 200px;
+            margin-top: 10px;
+            resize: none;
+        }
+
+        .results-section button {
+            background-color: #28a745;
+            color: #fff;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            font-size: 1rem;
+            cursor: pointer;
+            margin-top: 15px;
+            transition: background-color 0.3s ease;
+        }
+
+        .results-section button:hover {
+            background-color: #218838;
+        }
+
+        @media (max-width: 600px) {
+            .header h1 {
+                font-size: 1.5rem;
+            }
+            .form-section input, .results-section textarea {
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Subnet Calculator</h1>
+        </div>
+        <div class="form-section">
+            <label for="ip">IP Address:</label>
+            <input type="text" id="ip" placeholder="e.g., 192.168.1.0">
+
+            <label for="mask">Subnet Mask (CIDR):</label>
+            <input type="number" id="mask" min="0" max="32" placeholder="e.g., 24">
+
+            <button type="button" onclick="calculateSubnet()">Calculate</button>
+        </div>
+        <div id="results" class="results-section"></div>
+    </div>
+
+    <script>
+        function calculateSubnet() {
+            const ip = document.getElementById('ip').value.trim();
+            const mask = parseInt(document.getElementById('mask').value, 10);
+
+            if (!validateIP(ip) || mask < 0 || mask > 32) {
+                document.getElementById('results').innerHTML = '<p style="color: red;">Invalid IP or subnet mask! Please try again.</p>';
+                return;
+            }
+
+            const ipBinary = ipToBinary(ip);
+            const networkBinary = ipBinary.slice(0, mask).padEnd(32, '0');
+            const broadcastBinary = ipBinary.slice(0, mask).padEnd(32, '1');
+
+            const networkAddress = binaryToIP(networkBinary);
+            const broadcastAddress = binaryToIP(broadcastBinary);
+            const firstUsableBinary = incrementBinary(networkBinary);
+            const lastUsableBinary = decrementBinary(broadcastBinary);
+            const firstUsable = binaryToIP(firstUsableBinary);
+            const lastUsable = binaryToIP(lastUsableBinary);
+            const hosts = Math.pow(2, 32 - mask) - 2;
+
+            // Generate all host IPs
+            const hostIPs = generateHostIPs(firstUsableBinary, lastUsableBinary);
+
+            document.getElementById('results').innerHTML = `
+                <h2>Results</h2>
+                <p><strong>Network Address:</strong> ${networkAddress}</p>
+                <p><strong>Broadcast Address:</strong> ${broadcastAddress}</p>
+                <p><strong>First Usable Address:</strong> ${firstUsable}</p>
+                <p><strong>Last Usable Address:</strong> ${lastUsable}</p>
+                <p><strong>Total Hosts:</strong> ${hosts}</p>
+                <p><strong>Host IPs:</strong></p>
+                <textarea id="hostIps" readonly>${hostIPs.join('\n')}</textarea>
+                <button onclick="copyHostIPs()">Copy All Host IPs</button>
+            `;
+        }
+
+        function validateIP(ip) {
+            const parts = ip.split('.');
+            if (parts.length !== 4) return false;
+            return parts.every(part => {
+                const num = parseInt(part, 10);
+                return num >= 0 && num <= 255;
+            });
+        }
+
+        function ipToBinary(ip) {
+            return ip.split('.').map(part => {
+                return parseInt(part, 10).toString(2).padStart(8, '0');
+            }).join('');
+        }
+
+        function binaryToIP(binary) {
+            return binary.match(/.{8}/g).map(part => parseInt(part, 2)).join('.');
+        }
+
+        function incrementBinary(binary) {
+            return (BigInt('0b' + binary) + 1n).toString(2).padStart(32, '0');
+        }
+
+        function decrementBinary(binary) {
+            return (BigInt('0b' + binary) - 1n).toString(2).padStart(32, '0');
+        }
+
+        function generateHostIPs(firstBinary, lastBinary) {
+            const hostIPs = [];
+            let current = BigInt('0b' + firstBinary);
+            const last = BigInt('0b' + lastBinary);
+
+            while (current <= last) {
+                hostIPs.push(binaryToIP(current.toString(2).padStart(32, '0')));
+                current++;
+            }
+
+            return hostIPs;
+        }
+
+        function copyHostIPs() {
+            const textarea = document.getElementById('hostIps');
+            textarea.select();
+            document.execCommand('copy');
+            alert('Host IPs copied to clipboard!');
+        }
+    </script>
+</body>
+</html>
